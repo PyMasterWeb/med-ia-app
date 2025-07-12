@@ -1,18 +1,10 @@
-from flask import Blueprint, request, jsonify
 import json
 import os
-from src.services.drug_interaction_checker import DrugInteractionChecker
-from src.services.render_api import RenderAPI
-
-disease_bp = Blueprint('disease', __name__)
-
-# Inicializar serviços
-render_api = RenderAPI()
-drug_checker = DrugInteractionChecker()
+from difflib import SequenceMatcher
 
 # Carregar dados CID-10
 cid10_data = []
-cid10_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'cid10_datasus.json')
+cid10_path = os.path.join(os.path.dirname(__file__), 'cid10_datasus.json')
 if os.path.exists(cid10_path):
     with open(cid10_path, 'r', encoding='utf-8') as f:
         cid10_data = json.load(f)
