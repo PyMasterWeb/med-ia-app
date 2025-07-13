@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Med-IA - Sistema Médico Inteligente</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 5px solid #3498db;
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        
+        .form-group input, .form-group textarea, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus, .form-group textarea:focus, .form-group select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            display: none;
+        }
+        
+        .result.success {
+            border-color: #28a745;
+            background: #f8fff9;
+        }
+        
+        .result.error {
+            border-color: #dc3545;
+            background: #fff8f8;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-online {
+            background: #28a745;
+        }
+        
+        .status-offline {
+            background: #dc3545;
+        }
+        
+        .api-status {
+            background: #e9ecef;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .medication-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .medication-input input {
+            flex: 1;
+        }
+        
+        .medication-input button {
+            padding: 12px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        
+        .medication-list {
+            margin-top: 10px;
+        }
+        
+        .medication-item {
+            background: #e9ecef;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .remove-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 Med-IA</h1>
+            <p>Sistema Médico Inteligente - Versão 2.0</p>
+        </div>
+        
+        <div class="content">
+            <!-- Status da API -->
+            <div class="api-status">
+                <h3>Status da API</h3>
+                <div id="api-status">
+                    <span class="status-indicator status-offline"></span>
+                    Verificando conexão...
+                </div>
+            </div>
+            
+            <div class="grid">
+                <!-- Busca por Nome de Doença -->
+                <div class="section">
+                    <h2>🔍 Buscar Doença por Nome</h2>
+                    <div class="form-group">
+                        <label for="disease-search">Nome da doença:</label>
+                        <input type="text" id="disease-search" placeholder="Ex: diabetes, hipertensão, pneumonia...">
+                    </div>
+                    <button class="btn" onclick="searchDisease()">Buscar</button>
+                    <div class="loading" id="search-loading">
+                        <div class="spinner"></div>
+                        Buscando...
+                    </div>
+                    <div class="result" id="search-result"></div>
+                </div>
+                
+                <!-- Categorias CID -->
+                <div class="section">
+                    <h2>📋 Categorias CID-10</h2>
+                    <p>Visualizar todas as categorias de doenças organizadas por código CID-10.</p>
+                    <button class="btn" onclick="loadCategories()">Carregar Categorias</button>
+                    <div class="loading" id="categories-loading">
+                        <div class="spinner"></div>
+                        Carregando...
+                    </div>
+                    <div class="result" id="categories-result"></div>
+                </div>
+            </div>
+            
+            <div class="grid">
+                <!-- Diagnóstico por Sintomas -->
+                <div class="section">
+                    <h2>🩺 Diagnóstico por Sintomas</h2>
+                    
+                    <!-- Modo de seleção -->
+                    <div class="form-group">
+                        <label>Modo de entrada:</label>
+                        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                            <button class="btn" id="text-mode-btn" onclick="switchMode('text')" style="background: #28a745;">Texto Livre</button>
+                            <button class="btn" id="objective-mode-btn" onclick="switchMode('objective')" style="background: #6c757d;">Seleção Objetiva</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Modo texto livre -->
+                    <div id="text-mode" style="display: block;">
+                        <div class="form-group">
+                            <label for="symptoms">Descreva os sintomas:</label>
+                            <textarea id="symptoms" rows="4" placeholder="Ex: Sinto dor intensa ao urinar e um ardor na genitália. Também tenho urgência urinária e a urina está turva."></textarea>
+                        </div>
+                        <button class="btn" onclick="diagnoseSymptoms()">Analisar Sintomas</button>
+                    </div>
+                    
+                    <!-- Modo seleção objetiva -->
+                    <div id="objective-mode" style="display: none;">
+                        <div class="form-group">
+                            <label>Categorias de sintomas:</label>
+                            <select id="symptom-category" onchange="loadSymptomsByCategory()">
+                                <option value="">Selecione uma categoria</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" id="symptoms-list" style="display: none;">
+                            <label>Sintomas disponíveis:</label>
+                            <div id="available-symptoms"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Sintomas selecionados:</label>
+                            <div class="medication-list" id="selected-symptoms-list"></div>
+                        </div>
+                        
+                        <button class="btn" onclick="diagnoseObjectiveSymptoms()">Analisar Sintomas Selecionados</button>
+                    </div>
+                    
+                    <div class="loading" id="diagnosis-loading">
+                        <div class="spinner"></div>
+                        Analisando...
+                    </div>
+                    <div class="result" id="diagnosis-result"></div>
+                </div>
+                
+                <!-- Interações Medicamentosas -->
+                <div class="section">
+                    <h2>💊 Verificar Interações Medicamentosas</h2>
+                    <div class="form-group">
+                        <label>Adicionar medicamentos:</label>
+                        <div class="medication-input">
+                            <input type="text" id="medication-input" placeholder="Nome do medicamento">
+                            <button onclick="addMedication()">Adicionar</button>
+                        </div>
+                        <div class="medication-list" id="medication-list"></div>
+                    </div>
+                    <button class="btn" onclick="checkInteractions()">Verificar Interações</button>
+                    <div class="loading" id="interactions-loading">
+                        <div class="spinner"></div>
+                        Verificando...
+                    </div>
+                    <div class="result" id="interactions-result"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let medications = [];
+        let selectedSymptoms = [];
+        let currentMode = 'text';
+        
+        // Verificar status da API ao carregar a página
+        window.onload = function() {
+            checkApiStatus();
+            loadSymptomCategories();
+        };
+        
+        async function checkApiStatus() {
+            try {
+                const response = await fetch('/api/v2/health');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('api-status').innerHTML = `
+                        <span class="status-indicator status-online"></span>
+                        API Online - ${data.message}
+                    `;
+                } else {
+                    throw new Error('API offline');
+                }
+            } catch (error) {
+                document.getElementById('api-status').innerHTML = `
+                    <span class="status-indicator status-offline"></span>
+                    API Offline - Verifique a conexão
+                `;
+            }
+        }
+        
+        function switchMode(mode) {
+            currentMode = mode;
+            
+            if (mode === 'text') {
+                document.getElementById('text-mode').style.display = 'block';
+                document.getElementById('objective-mode').style.display = 'none';
+                document.getElementById('text-mode-btn').style.background = '#28a745';
+                document.getElementById('objective-mode-btn').style.background = '#6c757d';
+            } else {
+                document.getElementById('text-mode').style.display = 'none';
+                document.getElementById('objective-mode').style.display = 'block';
+                document.getElementById('text-mode-btn').style.background = '#6c757d';
+                document.getElementById('objective-mode-btn').style.background = '#28a745';
+            }
+        }
+        
+        async function loadSymptomCategories() {
+            try {
+                const response = await fetch('/api/v2/symptoms/categories');
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const select = document.getElementById('symptom-category');
+                    select.innerHTML = '<option value="">Selecione uma categoria</option>';
+                    
+                    Object.keys(data.categories).forEach(category => {
+                        const option = document.createElement('option');
+                        option.value = category;
+                        option.textContent = category;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Erro ao carregar categorias de sintomas:', error);
+            }
+        }
+        
+        async function loadSymptomsByCategory() {
+            const category = document.getElementById('symptom-category').value;
+            if (!category) {
+                document.getElementById('symptoms-list').style.display = 'none';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/v2/symptoms/categories');
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const symptoms = data.categories[category];
+                    const container = document.getElementById('available-symptoms');
+                    container.innerHTML = '';
+                    
+                    symptoms.forEach(symptom => {
+                        const button = document.createElement('button');
+                        button.textContent = symptom;
+                        button.className = 'btn';
+                        button.style.margin = '5px';
+                        button.style.padding = '8px 12px';
+                        button.style.fontSize = '14px';
+                        button.onclick = () => addSymptom(symptom);
+                        container.appendChild(button);
+                    });
+                    
+                    document.getElementById('symptoms-list').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Erro ao carregar sintomas:', error);
+            }
+        }
+        
+        function addSymptom(symptom) {
+            if (selectedSymptoms.includes(symptom)) {
+                alert('Este sintoma já foi selecionado');
+                return;
+            }
+            
+            selectedSymptoms.push(symptom);
+            updateSelectedSymptomsList();
+        }
+        
+        function removeSymptom(index) {
+            selectedSymptoms.splice(index, 1);
+            updateSelectedSymptomsList();
+        }
+        
+        function updateSelectedSymptomsList() {
+            const list = document.getElementById('selected-symptoms-list');
+            list.innerHTML = '';
+            
+            selectedSymptoms.forEach((symptom, index) => {
+                const item = document.createElement('div');
+                item.className = 'medication-item';
+                item.innerHTML = `
+                    <span>${symptom}</span>
+                    <button class="remove-btn" onclick="removeSymptom(${index})">Remover</button>
+                `;
+                list.appendChild(item);
+            });
+        }
+        
+        async function diagnoseObjectiveSymptoms() {
+            if (selectedSymptoms.length === 0) {
+                alert('Selecione pelo menos um sintoma');
+                return;
+            }
+            
+            showLoading('diagnosis-loading');
+            hideResult('diagnosis-result');
+            
+            try {
+                const response = await fetch('/api/v2/diagnose/objective_symptoms', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        symptoms: selectedSymptoms,
+                        include_report: true 
+                    })
+                });
+                
+                const data = await response.json();
+                hideLoading('diagnosis-loading');
+                
+                if (response.ok && data.success) {
+                    let html = `<h3>Diagnósticos encontrados: ${data.total_diagnoses}</h3>`;
+                    
+                    // Mostrar validação de sintomas
+                    if (data.symptom_validation && data.symptom_validation.length > 0) {
+                        html += '<h4>Condições possíveis baseadas nos sintomas:</h4>';
+                        data.symptom_validation.forEach(condition => {
+                            html += `
+                                <div style="margin: 10px 0; padding: 10px; background: #e3f2fd; border-radius: 5px;">
+                                    <strong>${condition.condition}</strong> - Confiança: ${condition.confidence.toFixed(1)}%<br>
+                                    <small>Sintomas correspondentes: ${condition.matching_symptoms}/${condition.total_symptoms}</small>
+                                </div>
+                            `;
+                        });
+                    }
+                    
+                    // Mostrar diagnósticos detalhados
+                    if (data.diagnostic_results) {
+                        data.diagnostic_results.forEach(result => {
+                            html += `
+                                <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                                    <strong>${result.disease_name}</strong> (${result.cid_code})<br>
+                                    Probabilidade: ${result.probability}% | Confiança: ${result.confidence_level}<br>
+                                    <small>Sintomas correspondentes: ${result.matching_symptoms.join(', ')}</small>
+                                </div>
+                            `;
+                        });
+                    }
+                    
+                    if (data.medical_report) {
+                        html += `
+                            <div style="margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 8px;">
+                                <h4>Relatório Médico:</h4>
+                                <pre style="white-space: pre-wrap; font-family: inherit;">${data.medical_report}</pre>
+                            </div>
+                        `;
+                    }
+                    
+                    showResult('diagnosis-result', html, 'success');
+                } else {
+                    showResult('diagnosis-result', 'Erro ao analisar sintomas: ' + (data.message || 'Erro desconhecido'), 'error');
+                }
+            } catch (error) {
+                hideLoading('diagnosis-loading');
+                showResult('diagnosis-result', 'Erro de conexão: ' + error.message, 'error');
+            }
+        }
+        
+        async function searchDisease() {
+            const query = document.getElementById('disease-search').value.trim();
+            if (!query) {
+                alert('Por favor, digite o nome de uma doença');
+                return;
+            }
+            
+            showLoading('search-loading');
+            hideResult('search-result');
+            
+            try {
+                const response = await fetch('/api/v2/search/name', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+                
+                const data = await response.json();
+                hideLoading('search-loading');
+                
+                if (response.ok && data.success) {
+                    let html = `<h3>Resultados encontrados: ${data.total_found}</h3>`;
+                    
+                    for (const result of data.results) {
+                        // Buscar detalhes da doença
+                        try {
+                            const detailsResponse = await fetch(`/api/v2/disease/${result.code}/details`);
+                            const detailsData = await detailsResponse.json();
+                            
+                            html += `
+                                <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
+                                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                                        <div style="flex: 1;">
+                                            <strong>${result.code}</strong> - ${result.description}<br>
+                                            <small>Relevância: ${result.relevance}% | Categoria: ${result.subcategory.category}</small>
+                                        </div>
+                                    </div>
+                            `;
+                            
+                            if (detailsResponse.ok && detailsData.success) {
+                                const details = detailsData.disease_details;
+                                const severityColor = {
+                                    'Leve': '#28a745',
+                                    'Moderada': '#ffc107', 
+                                    'Grave': '#dc3545',
+                                    'Leve a Moderada': '#17a2b8',
+                                    'Moderada a Grave': '#fd7e14'
+                                };
+                                
+                                html += `
+                                    <div style="margin-top: 10px; padding: 10px; background: white; border-radius: 5px;">
+                                        <div style="margin-bottom: 8px;">
+                                            <span style="color: ${severityColor[details.severity] || '#6c757d'}; font-weight: bold;">
+                                                🔴 Gravidade: ${details.severity}
+                                            </span>
+                                        </div>
+                                        
+                                        <div style="margin-bottom: 8px;">
+                                            <strong>💊 Tratamento:</strong> 
+                                            ${details.has_treatment ? 
+                                                `<span style="color: #28a745;">Disponível (${details.treatment_type})</span>` : 
+                                                '<span style="color: #dc3545;">Não especificado</span>'
+                                            }
+                                        </div>
+                                        
+                                        ${details.medications && details.medications.length > 0 ? `
+                                            <div style="margin-bottom: 8px;">
+                                                <strong>💉 Medicamentos:</strong> ${details.medications.join(', ')}
+                                            </div>
+                                        ` : ''}
+                                        
+                                        ${details.non_medication_treatment && details.non_medication_treatment.length > 0 ? `
+                                            <div style="margin-bottom: 8px;">
+                                                <strong>🏥 Tratamento não medicamentoso:</strong> ${details.non_medication_treatment.join(', ')}
+                                            </div>
+                                        ` : ''}
+                                        
+                                        ${details.symptoms && details.symptoms.length > 0 ? `
+                                            <div style="margin-bottom: 8px;">
+                                                <strong>🩺 Sintomas típicos:</strong> ${details.symptoms.join(', ')}
+                                            </div>
+                                        ` : ''}
+                                        
+                                        ${details.prognosis ? `
+                                            <div>
+                                                <strong>📈 Prognóstico:</strong> ${details.prognosis}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            }
+                            
+                            html += '</div>';
+                            
+                        } catch (detailsError) {
+                            // Se não conseguir buscar detalhes, mostra só o resultado básico
+                            html += `
+                                <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                                    <strong>${result.code}</strong> - ${result.description}<br>
+                                    <small>Relevância: ${result.relevance}% | Categoria: ${result.subcategory.category}</small>
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    showResult('search-result', html, 'success');
+                } else {
+                    showResult('search-result', 'Erro ao buscar doenças: ' + (data.message || 'Erro desconhecido'), 'error');
+                }
+            } catch (error) {
+                hideLoading('search-loading');
+                showResult('search-result', 'Erro de conexão: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadCategories() {
+            showLoading('categories-loading');
+            hideResult('categories-result');
+            
+            try {
+                const response = await fetch('/api/v2/categories');
+                const data = await response.json();
+                hideLoading('categories-loading');
+                
+                if (response.ok && data.success) {
+                    let html = `<h3>Total de categorias: ${data.total_categories}</h3>`;
+                    data.categories.slice(0, 10).forEach(category => {
+                        html += `
+                            <div style="margin: 10px 0; padding: 12px; background: #f8f9fa; border-radius: 8px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong>${category.letter}</strong> - ${category.title}<br>
+                                        <small>${category.description}</small>
+                                    </div>
+                                    <button class="btn" onclick="loadDiseasesByCategory('${category.letter}')" 
+                                            style="background: #17a2b8; padding: 8px 12px; font-size: 12px;">
+                                        Ver Doenças
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    if (data.categories.length > 10) {
+                        html += `<p><em>Mostrando 10 de ${data.categories.length} categorias...</em></p>`;
+                    }
+                    showResult('categories-result', html, 'success');
+                } else {
+                    showResult('categories-result', 'Erro ao carregar categorias: ' + (data.message || 'Erro desconhecido'), 'error');
+                }
+            } catch (error) {
+                hideLoading('categories-loading');
+                showResult('categories-result', 'Erro de conexão: ' + error.message, 'error');
+            }
+        }
+        
+        async function loadDiseasesByCategory(categoryLetter) {
+            showLoading('categories-loading');
+            
+            try {
+                const response = await fetch(`/api/v2/categories/${categoryLetter}/diseases`);
+                const data = await response.json();
+                hideLoading('categories-loading');
+                
+                if (response.ok && data.success) {
+                    let html = `
+                        <div style="margin-bottom: 15px;">
+                            <button class="btn" onclick="loadCategories()" style="background: #6c757d; padding: 8px 12px;">
+                                ← Voltar às Categorias
+                            </button>
+                        </div>
+                        <h3>Categoria ${data.category} - ${data.total_diseases} doenças encontradas</h3>
+                    `;
+                    
+                    data.diseases.forEach(disease => {
+                        const severityColor = {
+                            'Leve': '#28a745',
+                            'Moderada': '#ffc107', 
+                            'Grave': '#dc3545',
+                            'Leve a Moderada': '#17a2b8',
+                            'Moderada a Grave': '#fd7e14'
+                        };
+                        
+                        html += `
+                            <div style="margin: 10px 0; padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
+                                <strong>${disease.code}</strong> - ${disease.description}
+                                ${disease.severity ? `
+                                    <br><span style="color: ${severityColor[disease.severity] || '#6c757d'}; font-weight: bold; font-size: 12px;">
+                                        🔴 ${disease.severity}
+                                    </span>
+                                ` : ''}
+                                ${disease.has_treatment ? `
+                                    <span style="color: #28a745; font-weight: bold; font-size: 12px; margin-left: 10px;">
+                                        💊 Tratamento: ${disease.treatment_type || 'Disponível'}
+                                    </span>
+                                ` : ''}
+                            </div>
+                        `;
+                    });
+                    
+                    showResult('categories-result', html, 'success');
+                } else {
+                    showResult('categories-result', 'Erro ao carregar doenças da categoria: ' + (data.message || 'Erro desconhecido'), 'error');
+                }
+            } catch (error) {
+                hideLoading('categories-loading');
+                showResult('categories-result', 'Erro de conexão: ' + error.message, 'error');
+            }
+        }
+        
+        async function diagnoseSymptoms() {
+            const symptoms = document.getElementById('symptoms').value.trim();
+            if (!symptoms) {
+                alert('Por favor, descreva os sintomas');
+                return;
+            }
+            
+            showLoading('diagnosis-loading');
+            hideResult('diagnosis-result');
+            
+            try {
+                const response = await fetch('/api/v2/diagnose/symptoms', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        symptoms_report: symptoms,
+                        include_report: true 
+                    })
+                });
+                
+                const data = await response.json();
+                hideLoading('diagnosis-loading');
+                
+                if (response.ok && data.success) {
+                    let html = `<h3>Diagnósticos encontrados: ${data.total_diagnoses}</h3>`;
+                    data.diagnostic_results.forEach(result => {
+                        html += `
+                            <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                                <strong>${result.disease_name}</strong> (${result.cid_code})<br>
+                                Probabilidade: ${result.probability}% | Confiança: ${result.confidence_level}<br>
+                                <small>Sintomas correspondentes: ${result.matching_symptoms.join(', ')}</small>
+                            </div>
+                        `;
+                    });
+                    
+                    if (data.medical_report) {
+                        html += `
+                            <div style="margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 8px;">
+                                <h4>Relatório Médico:</h4>
+                                <pre style="white-space: pre-wrap; font-family: inherit;">${data.medical_report}</pre>
+                            </div>
+                        `;
+                    }
+                    
+                    showResult('diagnosis-result', html, 'success');
+                } else {
+                    showResult('diagnosis-result', 'Erro ao analisar sintomas: ' + (data.message || 'Erro desconhecido'), 'error');
+                }
+            } catch (error) {
+                hideLoading('diagnosis-loading');
+                showResult('diagnosis-result', 'Erro de conexão: ' + error.message, 'error');
+            }
+        }
+        
+        function addMedication() {
+            const input = document.getElementById('medication-input');
+            const medication = input.value.trim();
+            
+            if (!medication) {
+                alert('Por favor, digite o nome do medicamento');
+                return;
+            }
+            
+            if (medications.includes(medication.toLowerCase())) {
+                alert('Este medicamento já foi adicionado');
+                return;
+            }
+            
+            medications.push(medication.toLowerCase());
+            input.value = '';
+            updateMedicationList();
+        }
+        
+        function removeMedication(index) {
+            medications.splice(index, 1);
+            updateMedicationList();
+        }
+        
+        function updateMedicationList() {
+            const list = document.getElementById('medication-list');
+            list.innerHTML = '';
+            
+            medications.forEach((med, index) => {
+                const item = document.createElement('div');
+                item.className = 'medication-item';
+                item.innerHTML = `
+                    <span>${med}</span>
+                    <button class="remove-btn" onclick="removeMedication(${index})">Remover</button>
+                `;
+                list.appendChild(item);
+            });
+        }
+        
+        async function checkInteractions() {
+            if (medications.length < 2) {
+                alert('Adicione pelo menos 2 medicamentos para verificar interações');
+                return;
+            }
+            
+            showLoading('interactions-loading');
+            hideResult('interactions-result');
+            
+            try {
+                const response = await fetch('/api/v2/interactions/check', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        medications: medications,
+                        include_report: true 
+                    })
+                });
+                
+                const data = await response.json();
+                hideLoading('interactions-loading');
+                
+                if (response.ok && data.success) {
+                    let html = `<h3>Interações encontradas: ${data.summary.total_interactions}</h3>`;
+                    
+                    if (data.summary.total_interactions > 0) {
+                        html += `<p><strong>Maior gravidade:</strong> ${data.summary.highest_severity}</p>`;
+                        
+                        data.summary.interactions.forEach(interaction => {
+                            const severityColor = {
+                                'Leve': '#28a745',
+                                'Moderada': '#ffc107',
+                                'Grave': '#fd7e14',
+                                'Contraindicada': '#dc3545'
+                            };
+                            
+                            html += `
+                                <div style="margin: 15px 0; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid ${severityColor[interaction.severity] || '#6c757d'};">
+                                    <strong>${interaction.drug1} + ${interaction.drug2}</strong><br>
+                                    <span style="color: ${severityColor[interaction.severity] || '#6c757d'}; font-weight: bold;">Gravidade: ${interaction.severity}</span><br>
+                                    <small>${interaction.mechanism}</small><br>
+                                    <small><strong>Efeitos:</strong> ${interaction.clinical_effects.join(', ')}</small>
+                                </div>
+                            `;
+                        });
+                        
+                        if (data.detailed_report) {
+                            html += `
+                                <div style="margin-top: 20px; padding: 15px; background: #e9ecef; border-radius: 8px;">
+                                    <h4>Relatório Detalhado:</h4>
+                                    <pre style="white-space: pre-wrap; font-family: inherit; font-size: 12px;">${data.detailed_report}</pre>
+                                </div>
+                            `;
+                        }
+                    } else {
+                        html += '<p style="color: #28a745;">✅ Nenhuma interação conhecida encontrada entre os medicamentos informados.</p>';
+                    }
+                    
+                    showResult('interactions-result', html, 'success');
+                } else {
+                    showResult('interactions-result', 'Erro ao verificar interações: ' + (data.message || 'Erro desconhecido'), 'error');
+                }
+            } catch (error) {
+                hideLoading('interactions-loading');
+                showResult('interactions-result', 'Erro de conexão: ' + error.message, 'error');
+            }
+        }
+        
+        function showLoading(id) {
+            document.getElementById(id).style.display = 'block';
+        }
+        
+        function hideLoading(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+        
+        function showResult(id, content, type) {
+            const result = document.getElementById(id);
+            result.innerHTML = content;
+            result.className = `result ${type}`;
+            result.style.display = 'block';
+        }
+        
+        function hideResult(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+        
+        // Permitir busca com Enter
+        document.getElementById('disease-search').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchDisease();
+            }
+        });
+        
+        document.getElementById('medication-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addMedication();
+            }
+        });
+    </script>
+</body>
+</html>
+
