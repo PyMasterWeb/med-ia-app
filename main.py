@@ -1,174 +1,186 @@
 import os
-from flask import Flask, render_template, request, jsonify, send_from_directory
-from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
 import json
-import logging
+from flask import Flask, send_from_directory, jsonify, request
+from flask_cors import CORS
 
-# Configuração de logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Importações dos módulos
-try:
-    from src.cid_categorizer import CIDCategorizer
-    from src.diagnostic_engine import DiagnosticEngine
-    from src.drug_interaction_checker import DrugInteractionChecker
-    from src.enhanced_drug_interaction_checker import EnhancedDrugInteractionChecker
-    from src.symptom_selector_service import SymptomSelectorService
-    from src.routes.disease import DiseaseDetailsService
-    from src.routes.enhanced_disease import enhanced_disease_bp
-    from src.models.disease import Disease
-except ImportError as e:
-    logger.error(f"Erro ao importar módulos: {e}")
-
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
 
-# Configuração do banco de dados
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///app.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
+# Configurações da API Render
+CLIENT_ID = os.environ.get('CLIENT_ID', '84b64ed5-c3b1-47d1-a230-5a8234ed6a09_3cc45ea9-bba3-4857-8098-df9277fed4e0')
+CLIENT_SECRET = os.environ.get('CLIENT_SECRET', 'cSAbaw4dlFaGxBceLnnAvo6nHZLtTC3unArNaz8GCA4=')
+API_KEY = os.environ.get('API_KEY', 'rnd_MXAQGe8GLrsBKdKvqzxkYFOxWShO')
 
-db = SQLAlchemy(app)
+# Carregar dados do CID-10
+def load_cid10_data():
+    try:
+        with open('cid10_datasus.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            # Converter lista para dicionário para facilitar busca
+            if isinstance(data, list):
+                cid_dict = {}
+                for item in data:
+                    if isinstance(item, dict) and 'code' in item:
+                        cid_dict[item['code']] = {
+                            'name': item.get('description', ''),
+                            'category': item.get('category', 'Não categorizado'),
+                            'description': item.get('description', ''),
+                            'symptoms': item.get('symptoms', []),
+                            'treatments': item.get('treatments', [])
+                        }
+                return cid_dict
+            return data
+    except FileNotFoundError:
+        print("Arquivo cid10_datasus.json não encontrado")
+        return {}
+    except json.JSONDecodeError as e:
+        print(f"Erro ao decodificar JSON: {e}")
+        return {}
 
-# Registrar blueprints
-try:
-    app.register_blueprint(enhanced_disease_bp, url_prefix='/api')
-except Exception as e:
-    logger.error(f"Erro ao registrar blueprint: {e}")
-
-# Inicializar serviços
-try:
-    cid_categorizer = CIDCategorizer()
-    diagnostic_engine = DiagnosticEngine()
-    drug_checker = DrugInteractionChecker()
-    enhanced_drug_checker = EnhancedDrugInteractionChecker()
-    symptom_service = SymptomSelectorService()
-    disease_service = DiseaseDetailsService()
-except Exception as e:
-    logger.error(f"Erro ao inicializar serviços: {e}")
+cid10_data = load_cid10_data()
 
 @app.route('/')
 def index():
-    """Página principal da aplicação"""
+    """Serve a página principal"""
     try:
         return send_from_directory(app.static_folder, 'index.html')
     except Exception as e:
-        logger.error(f"Erro ao servir index.html: {e}")
-        return jsonify({"error": "Página não encontrada"}), 404
+        return f"Erro ao carregar página: {str(e)}", 500
 
-@app.route('/api/health')
-def health_check():
-    """Endpoint de verificação de saúde da API"""
+@app.route('/health')
+def health():
+    """Health check endpoint"""
     return jsonify({
         "status": "healthy",
-        "message": "Med-IA API está funcionando",
-        "version": "2.0"
+        "message": "Med-IA API está funcionando!",
+        "version": "1.0",
+        "api_configured": bool(CLIENT_ID and CLIENT_SECRET and API_KEY),
+        "cid10_loaded": len(cid10_data) > 0,
+        "total_diseases": len(cid10_data)
     })
 
-@app.route('/api/search/diseases')
-def search_diseases():
-    """Buscar doenças por termo"""
-    try:
-        query = request.args.get('q', '').strip()
-        if not query:
-            return jsonify({"error": "Parâmetro 'q' é obrigatório"}), 400
-        
-        results = disease_service.search_diseases(query)
-        return jsonify({"results": results})
-    except Exception as e:
-        logger.error(f"Erro na busca de doenças: {e}")
-        return jsonify({"error": "Erro interno do servidor"}), 500
+@app.route('/api/diseases', methods=['GET'])
+def get_diseases():
+    """Endpoint para buscar doenças"""
+    search_term = request.args.get('search', '').lower()
+    
+    if not search_term:
+        return jsonify({"error": "Termo de busca é obrigatório"}), 400
+    
+    results = []
+    for code, disease_info in cid10_data.items():
+        if isinstance(disease_info, dict):
+            name = disease_info.get('name', '').lower()
+            if search_term in name or search_term in code.lower():
+                results.append({
+                    "code": code,
+                    "name": disease_info.get('name', ''),
+                    "category": disease_info.get('category', ''),
+                    "description": disease_info.get('description', '')
+                })
+    
+    return jsonify({
+        "results": results[:20],  # Limitar a 20 resultados
+        "total": len(results)
+    })
 
-@app.route('/api/diseases/<disease_id>')
-def get_disease_details(disease_id):
-    """Obter detalhes de uma doença específica"""
-    try:
-        details = disease_service.get_disease_details(disease_id)
-        if not details:
-            return jsonify({"error": "Doença não encontrada"}), 404
-        return jsonify(details)
-    except Exception as e:
-        logger.error(f"Erro ao obter detalhes da doença: {e}")
-        return jsonify({"error": "Erro interno do servidor"}), 500
+@app.route('/api/disease/<code>', methods=['GET'])
+def get_disease_details(code):
+    """Endpoint para obter detalhes de uma doença específica"""
+    code = code.upper()
+    
+    if code not in cid10_data:
+        return jsonify({"error": "Código CID-10 não encontrado"}), 404
+    
+    disease_info = cid10_data[code]
+    return jsonify({
+        "code": code,
+        "name": disease_info.get('name', ''),
+        "category": disease_info.get('category', ''),
+        "description": disease_info.get('description', ''),
+        "symptoms": disease_info.get('symptoms', []),
+        "treatments": disease_info.get('treatments', [])
+    })
 
-@app.route('/api/diagnose', methods=['POST'])
-def diagnose():
-    """Realizar diagnóstico baseado em sintomas"""
-    try:
-        data = request.get_json()
-        if not data or 'symptoms' not in data:
-            return jsonify({"error": "Lista de sintomas é obrigatória"}), 400
-        
-        symptoms = data['symptoms']
-        if not isinstance(symptoms, list) or not symptoms:
-            return jsonify({"error": "Lista de sintomas deve ser não vazia"}), 400
-        
-        diagnosis = diagnostic_engine.diagnose(symptoms)
-        return jsonify(diagnosis)
-    except Exception as e:
-        logger.error(f"Erro no diagnóstico: {e}")
-        return jsonify({"error": "Erro interno do servidor"}), 500
+@app.route('/api/symptoms', methods=['POST'])
+def analyze_symptoms():
+    """Endpoint para análise de sintomas"""
+    data = request.get_json()
+    
+    if not data or 'symptoms' not in data:
+        return jsonify({"error": "Lista de sintomas é obrigatória"}), 400
+    
+    symptoms = data['symptoms']
+    
+    # Análise simples baseada em correspondência de sintomas
+    possible_diseases = []
+    
+    for code, disease_info in cid10_data.items():
+        if isinstance(disease_info, dict) and 'symptoms' in disease_info:
+            disease_symptoms = disease_info.get('symptoms', [])
+            matches = 0
+            
+            for symptom in symptoms:
+                for disease_symptom in disease_symptoms:
+                    if symptom.lower() in disease_symptom.lower():
+                        matches += 1
+                        break
+            
+            if matches > 0:
+                confidence = (matches / len(symptoms)) * 100
+                possible_diseases.append({
+                    "code": code,
+                    "name": disease_info.get('name', ''),
+                    "confidence": round(confidence, 2),
+                    "matching_symptoms": matches,
+                    "total_symptoms": len(symptoms)
+                })
+    
+    # Ordenar por confiança
+    possible_diseases.sort(key=lambda x: x['confidence'], reverse=True)
+    
+    return jsonify({
+        "analyzed_symptoms": symptoms,
+        "possible_diseases": possible_diseases[:10],  # Top 10
+        "disclaimer": "Esta análise é apenas informativa e não substitui consulta médica."
+    })
 
-@app.route('/api/drug-interactions', methods=['POST'])
-def check_drug_interactions():
-    """Verificar interações medicamentosas"""
-    try:
-        data = request.get_json()
-        if not data or 'drugs' not in data:
-            return jsonify({"error": "Lista de medicamentos é obrigatória"}), 400
-        
-        drugs = data['drugs']
-        if not isinstance(drugs, list) or len(drugs) < 2:
-            return jsonify({"error": "Pelo menos 2 medicamentos são necessários"}), 400
-        
-        interactions = enhanced_drug_checker.check_interactions(drugs)
-        return jsonify(interactions)
-    except Exception as e:
-        logger.error(f"Erro na verificação de interações: {e}")
-        return jsonify({"error": "Erro interno do servidor"}), 500
+@app.route('/api/test')
+def api_test():
+    """Endpoint de teste da API"""
+    return jsonify({
+        'status': 'ok', 
+        'message': 'API test endpoint working!',
+        'timestamp': str(os.environ.get('TZ', 'UTC'))
+    })
 
-@app.route('/api/symptoms/suggest')
-def suggest_symptoms():
-    """Sugerir sintomas baseado em entrada parcial"""
-    try:
-        query = request.args.get('q', '').strip()
-        if not query:
-            return jsonify({"suggestions": []})
-        
-        suggestions = symptom_service.suggest_symptoms(query)
-        return jsonify({"suggestions": suggestions})
-    except Exception as e:
-        logger.error(f"Erro na sugestão de sintomas: {e}")
-        return jsonify({"error": "Erro interno do servidor"}), 500
-
-@app.route('/api/categories')
-def get_categories():
-    """Obter categorias CID-10"""
-    try:
-        categories = cid_categorizer.get_categories()
-        return jsonify({"categories": categories})
-    except Exception as e:
-        logger.error(f"Erro ao obter categorias: {e}")
-        return jsonify({"error": "Erro interno do servidor"}), 500
+# Rota para arquivos estáticos específicos
+@app.route('/<path:filename>')
+def serve_static(filename):
+    """Serve arquivos estáticos específicos"""
+    if app.static_folder and os.path.exists(os.path.join(app.static_folder, filename)):
+        return send_from_directory(app.static_folder, filename)
+    else:
+        # Para rotas que não existem, retorna a página principal (SPA behavior)
+        if not filename.startswith('api/'):
+            return send_from_directory(app.static_folder, 'index.html')
+        else:
+            return jsonify({"error": "API endpoint not found"}), 404
 
 @app.errorhandler(404)
 def not_found(error):
+    """Handler para 404"""
     return jsonify({"error": "Endpoint não encontrado"}), 404
 
 @app.errorhandler(500)
 def internal_error(error):
+    """Handler para 500"""
     return jsonify({"error": "Erro interno do servidor"}), 500
 
 if __name__ == '__main__':
-    with app.app_context():
-        try:
-            db.create_all()
-            logger.info("Banco de dados inicializado")
-        except Exception as e:
-            logger.error(f"Erro ao inicializar banco de dados: {e}")
-    
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    print(f"Iniciando Med-IA API na porta {port}")
+    print(f"CID-10 carregado: {len(cid10_data)} doenças")
+    app.run(host='0.0.0.0', port=port, debug=debug)
 
